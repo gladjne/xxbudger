@@ -1,0 +1,8 @@
+{
+  "name": "Budget Joy",
+  "description": "Une application moderne pour la gestion saine et optimisée d'un budget étudiant.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

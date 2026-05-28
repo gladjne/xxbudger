@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "189538773865",
+    "project_id": "budget-joy",
+    "storage_bucket": "budget-joy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:189538773865:android:90baf0dd4c0e3dee416bf8",
+        "android_client_info": {
+          "package_name": "com.aistudio.budgetjoy.vzwkmq"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAuQHP-RPur0pvSffKAVo8PGj4eHBjEnaM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
