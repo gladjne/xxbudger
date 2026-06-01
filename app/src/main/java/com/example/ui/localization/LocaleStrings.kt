@@ -1,3 +1,4 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.ui.localization
 
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -88,6 +89,8 @@ open class AppStrings {
     open val preferences: String = "Préférences"
     open val visualTheme: String = "Thème visuel"
     open val notifications: String = "Notifications"
+    open val biometricAuth: String = "Verrouillage biométrique"
+    open val biometricSubtitle: String = "Protéger l'accès à l'application par empreinte ou code"
     open val language: String = "Langue"
     open val currency: String = "Devise"
     open val resetOnboarding: String = "Réinitialiser Onboarding"
@@ -354,6 +357,8 @@ object EnglishStrings : AppStrings() {
     override val preferences = "Preferences"
     override val visualTheme = "Visual Theme"
     override val notifications = "Notifications"
+    override val biometricAuth = "Biometric Lock"
+    override val biometricSubtitle = "Protect app access with fingerprint or credentials"
     override val language = "Language"
     override val currency = "Currency"
     override val resetOnboarding = "Reset Onboarding"

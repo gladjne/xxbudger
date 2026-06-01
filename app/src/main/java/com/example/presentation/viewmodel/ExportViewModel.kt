@@ -1,3 +1,4 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.presentation.viewmodel
 
 import android.content.Context
@@ -104,7 +105,7 @@ class ExportViewModel : ViewModel() {
                     _exportUiState.value = ExportUiState.Error("Impossible de générer le fichier PDF")
                 }
             } catch (e: Exception) {
-                _exportUiState.value = ExportUiState.Error(e.message ?: "Une erreur est survenue lors de l'exportation.")
+                _exportUiState.value = ExportUiState.Error("Une erreur est survenue lors de l'exportation.")
             }
         }
     }
@@ -306,7 +307,7 @@ class ExportViewModel : ViewModel() {
                 }
 
             } catch (e: Exception) {
-                _exportUiState.value = ExportUiState.Error(e.message ?: "Une erreur est survenue lors de l'exportation.")
+                _exportUiState.value = ExportUiState.Error("Une erreur est survenue lors de l'exportation.")
             }
         }
     }

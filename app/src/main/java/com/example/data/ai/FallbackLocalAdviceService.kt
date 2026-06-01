@@ -1,3 +1,4 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.data.ai
 
 import com.example.domain.ai.BudgetAiResult

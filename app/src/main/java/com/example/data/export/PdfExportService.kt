@@ -1,3 +1,4 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.data.export
 
 import android.content.Context
@@ -7,7 +8,7 @@ import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
-import android.util.Log
+import com.example.data.security.SafeLog as Log
 import com.example.domain.ai.BudgetAiResult
 import com.example.domain.analytics.GoalAnalysis
 import com.example.domain.model.Transaction

@@ -1,3 +1,4 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.data.notification
 
 import android.app.NotificationChannel
@@ -27,7 +28,7 @@ class DailyNotificationWorker(
     private val tag = "DailyNotificationWorker"
 
     override suspend fun doWork(): Result {
-        val sharedPrefs = applicationContext.getSharedPreferences("budget_joy_prefs", Context.MODE_PRIVATE)
+        val sharedPrefs = com.example.data.security.SecureStorageManager.getEncryptedSharedPreferences(applicationContext)
         val notificationsEnabled = sharedPrefs.getBoolean("notifications_enabled", true)
 
         if (!notificationsEnabled) {

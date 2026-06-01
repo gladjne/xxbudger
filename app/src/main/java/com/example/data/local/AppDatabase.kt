@@ -1,3 +1,4 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.data.local
 
 import android.content.Context
@@ -22,13 +23,21 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
+                val factory = com.example.data.security.SecureDatabaseHelper.getOpenHelperFactory(context)
+
+                val builder = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "budget_joy_database"
                 )
-                .fallbackToDestructiveMigration()
-                .build()
+                
+                if (factory != null) {
+                    builder.openHelperFactory(factory)
+                }
+
+                val instance = builder
+                    .fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }

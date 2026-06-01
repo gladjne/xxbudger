@@ -1,3 +1,4 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.presentation.ui
 
 import java.text.SimpleDateFormat
@@ -40,6 +41,18 @@ import com.example.presentation.viewmodel.BudgetUiState
 import com.example.presentation.viewmodel.BudgetViewModel
 import com.example.presentation.viewmodel.AiUiState
 import com.example.ui.theme.*
+import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.Canvas
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.MultiFormatWriter
+import com.google.zxing.common.BitMatrix
 
 @Composable
 fun ProfileTab(
@@ -97,6 +110,7 @@ fun ProfileTab(
     var exportTextState by remember { mutableStateOf("") }
     var showPrivacyScreen by remember { mutableStateOf(false) }
     var showCategoryLimitsScreen by remember { mutableStateOf(false) }
+    var showTwoFactorScreen by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
 
@@ -140,6 +154,15 @@ fun ProfileTab(
         CategoryLimitsScreen(
             viewModel = viewModel,
             onBack = { showCategoryLimitsScreen = false }
+        )
+        return
+    }
+
+    if (showTwoFactorScreen) {
+        TwoFactorSetupScreen(
+            authViewModel = authViewModel,
+            currentLanguage = currentLanguage,
+            onBack = { showTwoFactorScreen = false }
         )
         return
     }
@@ -498,6 +521,59 @@ fun ProfileTab(
 
                     HorizontalDivider(color = BorderColor.copy(alpha = 0.3f), thickness = 0.5.dp)
 
+                    // Biometric lock inline row
+                    val biometricsEnabled by viewModel.biometricsEnabled.collectAsState()
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(PrimaryBlue.copy(alpha = 0.12f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Fingerprint,
+                                contentDescription = "Biométrie",
+                                tint = PrimaryBlue,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = t.biometricAuth,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    color = TextWhite,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            )
+                            Text(
+                                text = t.biometricSubtitle,
+                                style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.sp)
+                            )
+                        }
+
+                        Switch(
+                            checked = biometricsEnabled,
+                            onCheckedChange = { viewModel.setBiometricsEnabled(it) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = PrimaryBlue,
+                                checkedTrackColor = PrimaryBlue.copy(alpha = 0.4f),
+                                uncheckedThumbColor = TextSecondary,
+                                uncheckedTrackColor = DarkBackground
+                            ),
+                            modifier = Modifier.testTag("biometric_switch")
+                        )
+                    }
+
+                    HorizontalDivider(color = BorderColor.copy(alpha = 0.3f), thickness = 0.5.dp)
+
                     // Spending limits row
                     SettingsActionRow(
                         icon = Icons.Default.Warning,
@@ -671,6 +747,15 @@ fun ProfileTab(
                         subtitle = p.privacySub,
                         onClick = { showPrivacyScreen = true },
                         tag = "privacy_policy_button"
+                    )
+
+                    SettingsActionRow(
+                        icon = Icons.Default.VpnKey,
+                        iconColor = ColorSaving,
+                        title = if (currentLanguage == com.example.ui.localization.AppLanguageSupported.FRANCAIS) "Authentification à deux facteurs" else "Two-Factor Authentication",
+                        subtitle = if (currentLanguage == com.example.ui.localization.AppLanguageSupported.FRANCAIS) "Sécurisez votre compte avec une application d'authentification (MFA)" else "Secure your account with an authenticator app (MFA)",
+                        onClick = { showTwoFactorScreen = true },
+                        tag = "two_factor_auth_row_button"
                     )
                 }
             }
@@ -1949,6 +2034,463 @@ private fun getProfileLocalization(lang: com.example.ui.localization.AppLanguage
             save = "저장",
             cancel = "취소"
         )
+    }
+}
+
+private fun buildQrCodeBitmap(text: String, size: Int = 250): Bitmap? {
+    return try {
+        val bitMatrix: BitMatrix = MultiFormatWriter().encode(
+            text,
+            BarcodeFormat.QR_CODE,
+            size,
+            size
+        )
+        val width = bitMatrix.width
+        val height = bitMatrix.height
+        val pixels = IntArray(width * height)
+        for (y in 0 until height) {
+            val offset = y * width
+            for (x in 0 until width) {
+                pixels[offset + x] = if (bitMatrix.get(x, y)) AndroidColor.BLACK else AndroidColor.WHITE
+            }
+        }
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        bitmap.setPixels(pixels, 0, width, 0, 0, width, height)
+        bitmap
+    } catch (e: Throwable) {
+        null
+    }
+}
+
+@Composable
+fun TwoFactorSetupScreen(
+    authViewModel: com.example.presentation.viewmodel.AuthViewModel,
+    currentLanguage: com.example.ui.localization.AppLanguageSupported,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val isFrench = currentLanguage == com.example.ui.localization.AppLanguageSupported.FRANCAIS
+    
+    var isEnabled by remember { mutableStateOf(authViewModel.is2FAEnabled()) }
+    var secretKey by remember { mutableStateOf<String?>(authViewModel.get2FASecret()) }
+    var stepActive by remember { mutableStateOf(false) } // true if in the middle of activation process
+    var codeInput by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var successMessage by remember { mutableStateOf<String?>(null) }
+
+    val qrUri = remember(secretKey) {
+        val email = authViewModel.currentUser.value?.email ?: "user"
+        secretKey?.let { "otpauth://totp/Budget%20Joy:$email?secret=$it&issuer=Budget%20Joy" }
+    }
+
+    val qrBitmap = remember(qrUri) {
+        qrUri?.let { buildQrCodeBitmap(it) }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(DarkBackground)
+            .testTag("two_factor_screen")
+    ) {
+        // Aesthetic backgrounds
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(ColorSaving.copy(alpha = 0.08f), Color.Transparent),
+                    center = Offset(size.width * 0.8f, size.height * 0.2f),
+                    radius = size.width * 0.7f
+                ),
+                radius = size.width * 0.7f,
+                center = Offset(size.width * 0.8f, size.height * 0.2f)
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back",
+                        tint = TextWhite
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isFrench) "Authentification à deux facteurs" else "Two-Factor Authentication",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        color = TextWhite,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(20.dp)
+            ) {
+                // Intro card / status card
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isEnabled) ColorSaving.copy(alpha = 0.08f) else DarkSurface
+                    ),
+                    shape = RoundedCornerShape(24.dp),
+                    border = BorderStroke(1.dp, if (isEnabled) ColorSaving.copy(alpha = 0.3f) else BorderColor),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(
+                                    if (isEnabled) ColorSaving.copy(alpha = 0.15f) else TextMuted.copy(alpha = 0.15f)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isEnabled) Icons.Default.VerifiedUser else Icons.Default.VpnKey,
+                                contentDescription = null,
+                                tint = if (isEnabled) ColorSaving else TextMuted,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        Text(
+                            text = if (isEnabled) {
+                                if (isFrench) "MFA Activée" else "MFA Enabled"
+                            } else {
+                                if (isFrench) "MFA Désactivée" else "MFA Disabled"
+                            },
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                color = if (isEnabled) ColorSaving else TextWhite,
+                                fontWeight = FontWeight.Bold
+                            )
+                        )
+
+                        Text(
+                            text = if (isEnabled) {
+                                if (isFrench) {
+                                    "Votre compte est hautement sécurisé contre les accès non autorisés à l'aide d'une application de double authentification."
+                                } else {
+                                    "Your account is highly secure against unauthorized access using simple two-factor authenticator app protocols."
+                                }
+                            } else {
+                                if (isFrench) {
+                                    "L'authentification à deux facteurs exige la validation d'un code dynamique lors de la connexion."
+                                } else {
+                                    "Two-factor authentication requires entering a dynamic token verification code when logging in."
+                                }
+                            },
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center,
+                                fontSize = 13.sp
+                            )
+                        )
+                    }
+                }
+
+                // Error / Success Banners
+                if (errorMessage != null) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = ColorExpense.copy(alpha = 0.08f)),
+                        border = BorderStroke(1.dp, ColorExpense.copy(alpha = 0.3f)),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Warning, contentDescription = null, tint = ColorExpense, modifier = Modifier.size(18.dp))
+                            Text(
+                                text = errorMessage ?: "",
+                                style = MaterialTheme.typography.bodySmall.copy(color = ColorExpense, fontWeight = FontWeight.Medium),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                if (successMessage != null) {
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = ColorSaving.copy(alpha = 0.08f)),
+                        border = BorderStroke(1.dp, ColorSaving.copy(alpha = 0.3f)),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = ColorSaving, modifier = Modifier.size(18.dp))
+                            Text(
+                                text = successMessage ?: "",
+                                style = MaterialTheme.typography.bodySmall.copy(color = ColorSaving, fontWeight = FontWeight.Medium),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                // Interaction layouts
+                if (isEnabled) {
+                    Button(
+                        onClick = {
+                            authViewModel.disable2FA()
+                            isEnabled = false
+                            secretKey = null
+                            stepActive = false
+                            successMessage = if (isFrench) "La double authentification a été désactivée avec succès." else "Two-factor authentication successfully disabled."
+                            errorMessage = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ColorExpense.copy(alpha = 0.15f), contentColor = ColorExpense),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .testTag("disable_2fa_button")
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.LockOpen, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isFrench) "Désactiver la double authentification" else "Disable Two-Factor Authentication",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold)
+                            )
+                        }
+                    }
+                } else {
+                    if (!stepActive) {
+                        Button(
+                            onClick = {
+                                successMessage = null
+                                errorMessage = null
+                                secretKey = authViewModel.generateAndGet2FASecret()
+                                stepActive = true
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
+                                .testTag("start_2fa_button")
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Lock, contentDescription = null, tint = DarkBackground)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (isFrench) "Activer la double authentification" else "Enable Two-Factor Authentication",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, color = DarkBackground)
+                                )
+                            }
+                        }
+                    } else {
+                        // We are in the activation process screen!
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = DarkSurface),
+                            shape = RoundedCornerShape(24.dp),
+                            border = BorderStroke(1.dp, BorderColor),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Text(
+                                    text = if (isFrench) "1. Scannez le QR Code" else "1. Scan the QR Code",
+                                    style = MaterialTheme.typography.titleSmall.copy(color = TextWhite, fontWeight = FontWeight.Bold),
+                                    modifier = Modifier.align(Alignment.Start)
+                                )
+
+                                Text(
+                                    text = if (isFrench) {
+                                        "Scannez ce code avec Google Authenticator ou une application équivalente."
+                                    } else {
+                                        "Scan this code with Google Authenticator or an equivalent authentication application."
+                                    },
+                                    style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary),
+                                    modifier = Modifier.align(Alignment.Start)
+                                )
+
+                                // Render the dynamic QR Code image
+                                qrBitmap?.let { bitmap ->
+                                    Box(
+                                        modifier = Modifier
+                                            .size(200.dp)
+                                            .background(Color.White, RoundedCornerShape(16.dp))
+                                            .padding(12.dp)
+                                            .align(Alignment.CenterHorizontally)
+                                    ) {
+                                        Image(
+                                            bitmap = bitmap.asImageBitmap(),
+                                            contentDescription = "QR Code",
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Text(
+                                    text = if (isFrench) "2. Clé secrète manuelle" else "2. Manual Secret Key",
+                                    style = MaterialTheme.typography.titleSmall.copy(color = TextWhite, fontWeight = FontWeight.Bold),
+                                    modifier = Modifier.align(Alignment.Start)
+                                )
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(DarkBackground, RoundedCornerShape(12.dp))
+                                        .border(1.dp, BorderColor, RoundedCornerShape(12.dp))
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = secretKey ?: "",
+                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                            color = PrimaryBlue,
+                                            fontWeight = FontWeight.Medium,
+                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                        ),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(
+                                        onClick = {
+                                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                            val clip = ClipData.newPlainText("2FA Secret Key", secretKey ?: "")
+                                            clipboard.setPrimaryClip(clip)
+                                            Toast.makeText(context, if (isFrench) "Clé copiée !" else "Key copied!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ContentCopy,
+                                            contentDescription = "Copy key",
+                                            tint = TextSecondary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Text(
+                                    text = if (isFrench) "3. Saisir le code de vérification" else "3. Enter Verification Code",
+                                    style = MaterialTheme.typography.titleSmall.copy(color = TextWhite, fontWeight = FontWeight.Bold),
+                                    modifier = Modifier.align(Alignment.Start)
+                                )
+
+                                OutlinedTextField(
+                                    value = codeInput,
+                                    onValueChange = {
+                                        // limit to 6 digits numeric only
+                                        if (it.length <= 6 && it.all { c -> c.isDigit() }) {
+                                            codeInput = it
+                                        }
+                                    },
+                                    placeholder = { Text("000000") },
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = TextWhite,
+                                        unfocusedTextColor = TextWhite,
+                                        focusedBorderColor = PrimaryBlue,
+                                        unfocusedBorderColor = BorderColor,
+                                        focusedLabelColor = PrimaryBlue,
+                                        unfocusedLabelColor = TextSecondary
+                                    ),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(
+                                        keyboardType = KeyboardType.Number,
+                                        imeAction = ImeAction.Done
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("2fa_code_input")
+                                )
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    TextButton(
+                                        onClick = {
+                                            stepActive = false
+                                            codeInput = ""
+                                            errorMessage = null
+                                            successMessage = null
+                                            authViewModel.disable2FA() // clean manual keys if aborted
+                                            secretKey = null
+                                        },
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(text = if (isFrench) "Annuler" else "Cancel", color = ColorExpense)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            val ok = authViewModel.verifyAndEnable2FA(codeInput)
+                                            if (ok) {
+                                                isEnabled = true
+                                                stepActive = false
+                                                codeInput = ""
+                                                errorMessage = null
+                                                successMessage = if (isFrench) "Félicitations ! L'authentification à deux facteurs est maintenant activée." else "Congratulations! Two-factor authentication is now active."
+                                            } else {
+                                                errorMessage = if (isFrench) "Code invalide ou expiré. Veuillez réessayer." else "Invalid or expired code. Please retry."
+                                            }
+                                        },
+                                        enabled = codeInput.length == 6,
+                                        colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue, contentColor = DarkBackground),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier
+                                            .weight(1.5f)
+                                            .testTag("verify_and_enable_2fa_button")
+                                    ) {
+                                        Text(
+                                            text = if (isFrench) "Vérifier & Activer" else "Verify & Activate",
+                                            fontWeight = FontWeight.Bold,
+                                            color = DarkBackground
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

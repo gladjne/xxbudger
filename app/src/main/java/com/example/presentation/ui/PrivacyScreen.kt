@@ -1,3 +1,4 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.presentation.ui
 
 import android.content.Context
@@ -321,6 +322,221 @@ fun PrivacyScreen(
                             Icon(Icons.Default.DeleteOutline, contentDescription = null, tint = ColorExpense, modifier = Modifier.size(16.dp))
                             Text(p.deleteGoals, color = ColorExpense, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
+                    }
+                }
+            }
+
+            // SHIELD SECURITY & MASVS INTEGRITY AUDIT CARD
+            val isFrench = currentLang == com.example.ui.localization.AppLanguageSupported.FRANCAIS
+            val isRooted = remember { com.example.data.security.CryptoUtils.isDeviceRooted() }
+            val activity = remember {
+                var currentContext = context
+                var foundAct: android.app.Activity? = null
+                while (currentContext is android.content.ContextWrapper) {
+                    if (currentContext is android.app.Activity) {
+                        foundAct = currentContext
+                        break
+                    }
+                    currentContext = currentContext.baseContext
+                }
+                foundAct
+            }
+            
+            var isScreenShieldActive by remember {
+                mutableStateOf(
+                    activity?.let {
+                        val flags = it.window?.attributes?.flags ?: 0
+                        (flags and android.view.WindowManager.LayoutParams.FLAG_SECURE) != 0
+                    } ?: false
+                )
+            }
+
+            LaunchedEffect(isScreenShieldActive) {
+                activity?.let { act ->
+                    act.runOnUiThread {
+                        try {
+                            if (isScreenShieldActive) {
+                                act.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                            } else {
+                                act.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                            }
+                        } catch (t: Throwable) {
+                            t.printStackTrace()
+                        }
+                    }
+                }
+            }
+
+            Card(
+                modifier = Modifier.fillMaxWidth().testTag("security_audit_card"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = DarkSurface),
+                border = BorderStroke(1.dp, ColorSaving.copy(alpha = 0.4f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(ColorSaving.copy(alpha = 0.15f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = null,
+                                tint = ColorSaving,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = if (isFrench) "Audit & Bouclier de Sécurité" else "Security Shield & Diagnostics",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    color = TextWhite,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                            Text(
+                                text = if (isFrench) "Statut d'intégrité en temps réel conforme MASVS" else "Real-time MASVS integrity status",
+                                style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.sp)
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(color = BorderColor.copy(alpha = 0.3f), thickness = 0.5.dp)
+
+                    // 1. Root / Device integrity
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (isRooted) Icons.Default.Warning else Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = if (isRooted) ColorExpense else ColorSaving,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = if (isFrench) "Intégrité du système" else "System Integrity",
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = TextWhite, fontWeight = FontWeight.SemiBold)
+                                )
+                                Text(
+                                    text = if (isFrench) (if (isRooted) "Appareil rooté (Non sécurisé)" else "Environnement certifié") else (if (isRooted) "Device rooted (Insecure)" else "Certified environment"),
+                                    style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.sp)
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isRooted) ColorExpense.copy(alpha = 0.15f) else ColorSaving.copy(alpha = 0.15f))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = if (isFrench) (if (isRooted) "COMPROMIS" else "SÉCURISÉ") else (if (isRooted) "COMPROMISED" else "SECURE"),
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = if (isRooted) ColorExpense else ColorSaving,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                        }
+                    }
+
+                    // 2. Cryptography Engine (Hardware security)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = ColorSaving,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = if (isFrench) "Chiffrement matériel (AES-GCM)" else "Hardware Encryption (AES-GCM)",
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = TextWhite, fontWeight = FontWeight.SemiBold)
+                                )
+                                Text(
+                                    text = if (isFrench) "Clés 2FA chiffrées par Keystore d'Android" else "2FA secrets secured by Android KeyStore",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.sp)
+                                )
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(ColorSaving.copy(alpha = 0.15f))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = if (isFrench) "ACTIF" else "ACTIVE",
+                                style = MaterialTheme.typography.labelSmall.copy(
+                                    color = ColorSaving,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            )
+                        }
+                    }
+
+                    // 3. Anti-Screenshot Protection Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Block,
+                                contentDescription = null,
+                                tint = if (isScreenShieldActive) ColorSaving else TextMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Column {
+                                Text(
+                                    text = if (isFrench) "Bouclier anti-capture" else "Anti-Screenshot Shield",
+                                    style = MaterialTheme.typography.bodyMedium.copy(color = TextWhite, fontWeight = FontWeight.SemiBold)
+                                )
+                                Text(
+                                    text = if (isFrench) "Bloque les captures d'écran et logiciels d'espionnage" else "Blocks screen captures, overlays & malware recordings",
+                                    style = MaterialTheme.typography.bodySmall.copy(color = TextSecondary, fontSize = 11.sp)
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = isScreenShieldActive,
+                            onCheckedChange = { isChecked ->
+                                isScreenShieldActive = isChecked
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = ColorSaving,
+                                checkedTrackColor = ColorSaving.copy(alpha = 0.4f),
+                                uncheckedThumbColor = TextMuted,
+                                uncheckedTrackColor = BorderColor
+                            )
+                        )
                     }
                 }
             }

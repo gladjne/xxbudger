@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Budget Joy</string>
+    <string name="biometric_prompt_title">Authentification requise</string>
+    <string name="biometric_prompt_subtitle">Veuillez vous authentifier pour accéder à vos données financières</string>
 </resources>

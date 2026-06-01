@@ -1,6 +1,7 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.data.remote
 
-import android.util.Log
+import com.example.data.security.SafeLog as Log
 import com.example.domain.model.Debt
 import com.google.android.gms.tasks.Task
 import com.google.firebase.firestore.FirebaseFirestore
@@ -31,10 +32,23 @@ class FirestoreDebtRemoteDataSource {
     }
 
     suspend fun saveDebt(userId: String, debt: Debt) {
+        if (userId.isBlank()) {
+            Log.e(tag, "Aborting Firestore action: User is not authenticated.")
+            return
+        }
+        if (debt.totalAmount <= 0.0) {
+            Log.e(tag, "Aborting Firestore action: Total debt amount must be greater than 0.")
+            return
+        }
+        if (debt.name.isBlank()) {
+            Log.e(tag, "Aborting Firestore action: Creditor name is required.")
+            return
+        }
         val db = firestore ?: return
         try {
             val data = hashMapOf(
                 "id" to debt.id,
+                "userId" to userId,
                 "name" to debt.name,
                 "totalAmount" to debt.totalAmount,
                 "reimbursedAmount" to debt.reimbursedAmount,
@@ -46,8 +60,8 @@ class FirestoreDebtRemoteDataSource {
                 .document(debt.id.toString())
                 .set(data)
                 .awaitDebtTask()
-            Log.d(tag, "Saved debt ${debt.id} to Firestore for user $userId")
-        } catch (e: Exception) {
+            Log.d(tag, "Saved debt ${debt.id} to Firestore")
+        } catch (e: Throwable) {
             Log.e(tag, "Error saving debt to Firestore", e)
             throw e
         }
@@ -62,8 +76,8 @@ class FirestoreDebtRemoteDataSource {
                 .document(debtId.toString())
                 .delete()
                 .awaitDebtTask()
-            Log.d(tag, "Deleted debt $debtId from Firestore for user $userId")
-        } catch (e: Exception) {
+            Log.d(tag, "Deleted debt $debtId from Firestore")
+        } catch (e: Throwable) {
             Log.e(tag, "Error deleting debt from Firestore", e)
             throw e
         }
@@ -79,11 +93,23 @@ class FirestoreDebtRemoteDataSource {
                 .awaitDebtTask()
             snapshot.documents.mapNotNull { doc ->
                 try {
-                    val id = doc.getLong("id")?.toInt() ?: doc.id.toIntOrNull() ?: return@mapNotNull null
+                    val id = when (val v = doc.get("id")) {
+                        is Number -> v.toInt()
+                        else -> doc.id.toIntOrNull() ?: return@mapNotNull null
+                    }
                     val name = doc.getString("name") ?: ""
-                    val totalAmount = doc.getDouble("totalAmount") ?: 0.0
-                    val reimbursedAmount = doc.getDouble("reimbursedAmount") ?: 0.0
-                    val dateTimestamp = doc.getLong("dateTimestamp")
+                    val totalAmount = when (val v = doc.get("totalAmount")) {
+                        is Number -> v.toDouble()
+                        else -> 0.0
+                    }
+                    val reimbursedAmount = when (val v = doc.get("reimbursedAmount")) {
+                        is Number -> v.toDouble()
+                        else -> 0.0
+                    }
+                    val dateTimestamp = when (val v = doc.get("dateTimestamp")) {
+                        is Number -> v.toLong()
+                        else -> null
+                    }
                     Debt(
                         id = id,
                         name = name,
@@ -91,12 +117,12 @@ class FirestoreDebtRemoteDataSource {
                         reimbursedAmount = reimbursedAmount,
                         dateTimestamp = dateTimestamp
                     )
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     Log.e(tag, "Error parsing debt from Firestore: ${doc.id}", e)
                     null
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(tag, "Error getting debts from Firestore", e)
             emptyList()
         }

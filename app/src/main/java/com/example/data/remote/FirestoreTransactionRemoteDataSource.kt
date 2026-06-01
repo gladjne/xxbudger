@@ -1,6 +1,7 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.data.remote
 
-import android.util.Log
+import com.example.data.security.SafeLog as Log
 import com.example.domain.model.Transaction
 import com.google.android.gms.tasks.Task
 import com.google.firebase.firestore.FirebaseFirestore
@@ -32,17 +33,31 @@ class FirestoreTransactionRemoteDataSource {
     }
 
     suspend fun saveTransaction(userId: String, transaction: Transaction) {
+        if (userId.isBlank()) {
+            Log.e(tag, "Aborting Firestore action: User is not authenticated.")
+            return
+        }
+        if (transaction.amount <= 0.0) {
+            Log.e(tag, "Aborting Firestore action: Amount must be greater than 0.")
+            return
+        }
+        if (transaction.type.isBlank() || transaction.category.isBlank()) {
+            Log.e(tag, "Aborting Firestore action: Transaction type and category are required.")
+            return
+        }
         val db = firestore ?: return
         try {
             val data = hashMapOf(
                 "id" to transaction.id,
+                "userId" to userId,
                 "type" to transaction.type,
                 "category" to transaction.category,
                 "customCategory" to transaction.customCategory,
                 "label" to transaction.label,
                 "amount" to transaction.amount,
                 "dateTimestamp" to transaction.dateTimestamp,
-                "associatedGoalId" to transaction.associatedGoalId
+                "associatedGoalId" to transaction.associatedGoalId,
+                "associatedDebtId" to transaction.associatedDebtId
             )
             db.collection("users")
                 .document(userId)
@@ -50,8 +65,8 @@ class FirestoreTransactionRemoteDataSource {
                 .document(transaction.id.toString())
                 .set(data)
                 .awaitTask()
-            Log.d(tag, "Saved transaction ${transaction.id} to Firestore for user $userId")
-        } catch (e: Exception) {
+            Log.d(tag, "Saved transaction ${transaction.id} to Firestore")
+        } catch (e: Throwable) {
             Log.e(tag, "Error saving transaction to Firestore", e)
             throw e
         }
@@ -66,8 +81,8 @@ class FirestoreTransactionRemoteDataSource {
                 .document(transactionId.toString())
                 .delete()
                 .awaitTask()
-            Log.d(tag, "Deleted transaction $transactionId from Firestore for user $userId")
-        } catch (e: Exception) {
+            Log.d(tag, "Deleted transaction $transactionId from Firestore")
+        } catch (e: Throwable) {
             Log.e(tag, "Error deleting transaction from Firestore", e)
             throw e
         }
@@ -83,14 +98,30 @@ class FirestoreTransactionRemoteDataSource {
                 .awaitTask()
             snapshot.documents.mapNotNull { doc ->
                 try {
-                    val id = doc.getLong("id")?.toInt() ?: doc.id.toIntOrNull() ?: return@mapNotNull null
+                    val id = when (val v = doc.get("id")) {
+                        is Number -> v.toInt()
+                        else -> doc.id.toIntOrNull() ?: return@mapNotNull null
+                    }
                     val type = doc.getString("type") ?: ""
                     val category = doc.getString("category") ?: ""
                     val customCategory = doc.getString("customCategory")
                     val label = doc.getString("label") ?: ""
-                    val amount = doc.getDouble("amount") ?: 0.0
-                    val dateTimestamp = doc.getLong("dateTimestamp") ?: 0L
-                    val associatedGoalId = doc.getLong("associatedGoalId")?.toInt()
+                    val amount = when (val v = doc.get("amount")) {
+                        is Number -> v.toDouble()
+                        else -> 0.0
+                    }
+                    val dateTimestamp = when (val v = doc.get("dateTimestamp")) {
+                        is Number -> v.toLong()
+                        else -> 0L
+                    }
+                    val associatedGoalId = when (val v = doc.get("associatedGoalId")) {
+                        is Number -> v.toInt()
+                        else -> null
+                    }
+                    val associatedDebtId = when (val v = doc.get("associatedDebtId")) {
+                        is Number -> v.toInt()
+                        else -> null
+                    }
                     Transaction(
                         id = id,
                         type = type,
@@ -99,14 +130,15 @@ class FirestoreTransactionRemoteDataSource {
                         label = label,
                         amount = amount,
                         dateTimestamp = dateTimestamp,
-                        associatedGoalId = associatedGoalId
+                        associatedGoalId = associatedGoalId,
+                        associatedDebtId = associatedDebtId
                     )
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     Log.e(tag, "Error parsing transaction from Firestore: ${doc.id}", e)
                     null
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(tag, "Error getting transactions from database", e)
             emptyList()
         }

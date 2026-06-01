@@ -1,6 +1,7 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.data.repository
 
-import android.util.Log
+import com.example.data.security.SafeLog as Log
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -35,7 +36,7 @@ class TransactionRepositoryImpl(
     private val firestoreGoalDataSource = FirestoreGoalRemoteDataSource()
     private val firestoreDebtDataSource = com.example.data.remote.FirestoreDebtRemoteDataSource()
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
-    private val sharedPrefs = context.getSharedPreferences("budget_joy_sync_prefs", android.content.Context.MODE_PRIVATE)
+    private val sharedPrefs = com.example.data.security.SecureStorageManager.getEncryptedSharedPreferences(context)
     private val connectivityManager = context.getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
 
     init {
@@ -43,7 +44,7 @@ class TransactionRepositoryImpl(
         coroutineScope.launch {
             authRepository.currentUser.collect { user ->
                 if (user != null) {
-                    Log.d(tag, "Auth session detected for user: ${user.email}. Restoring cloud synchronization...")
+                    Log.d(tag, "Auth session detected. Restoring cloud synchronization...")
                     syncWithCloud()
                 } else {
                     Log.d(tag, "No active user. Clearing all cached user data.")
@@ -68,11 +69,25 @@ class TransactionRepositoryImpl(
                 }
                 override fun onLost(network: Network) {
                     Log.d(tag, "Network connection lost.")
-                    SyncManager.updateState(SyncState.OFFLINE)
                 }
             })
         } catch (e: Exception) {
             Log.e(tag, "Failed to register network callback service", e)
+        }
+    }
+
+    private fun isCurrentlyOnline(): Boolean {
+        return try {
+            val activeNetwork = connectivityManager?.activeNetwork ?: return false
+            val caps = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+            caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+        } catch (e: Exception) {
+            try {
+                @Suppress("DEPRECATION")
+                connectivityManager?.activeNetworkInfo?.isConnected == true
+            } catch (ex: Exception) {
+                false
+            }
         }
     }
 
@@ -230,14 +245,20 @@ class TransactionRepositoryImpl(
     // Manual cloud integration mapping down to Room
     override suspend fun syncWithCloud() {
         val userId = getUserId() ?: return
-        Log.d(tag, "Initiating bidirectional cloud sync for user: $userId")
+        Log.d(tag, "Initiating bidirectional cloud sync")
         SyncManager.updateState(SyncState.SYNCING)
 
         // Check if there's a user shift to clear out any stale cache
         val lastSyncUserId = sharedPrefs.getString("last_sync_user_id", null)
         if (lastSyncUserId != null && lastSyncUserId != userId) {
-            Log.d(tag, "Detecting user shift! Last synced: $lastSyncUserId, current: $userId. Forcing clear of local cache.")
-            clearAllLocalData()
+            val isPrevLocal = lastSyncUserId.startsWith("local_")
+            val isCurrentLocal = userId.startsWith("local_")
+            if (!isPrevLocal && !isCurrentLocal) {
+                Log.d(tag, "Detecting real user shift between two online accounts! Forcing clear of local cache.")
+                clearAllLocalData()
+            } else if (isPrevLocal && !isCurrentLocal) {
+                Log.d(tag, "Migrating local offline user data to online user account: $userId. Local database is preserved.")
+            }
         }
         sharedPrefs.edit().putString("last_sync_user_id", userId).apply()
 
@@ -247,7 +268,7 @@ class TransactionRepositoryImpl(
             for (tx in localTxList) {
                 try {
                     firestoreTxDataSource.saveTransaction(userId, tx)
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     Log.w(tag, "Could not upload transaction ${tx.id} due to network/rules constraint, skipping item for now", e)
                 }
             }
@@ -256,7 +277,7 @@ class TransactionRepositoryImpl(
             for (goal in localGoalsList) {
                 try {
                     firestoreGoalDataSource.saveGoal(userId, goal)
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     Log.w(tag, "Could not upload savings goal ${goal.id} due to network/rules constraint, skipping item for now", e)
                 }
             }
@@ -265,7 +286,7 @@ class TransactionRepositoryImpl(
             for (debt in localDebtsList) {
                 try {
                     firestoreDebtDataSource.saveDebt(userId, debt)
-                } catch (e: Exception) {
+                } catch (e: Throwable) {
                     Log.w(tag, "Could not upload debt ${debt.id} due to network/rules constraint, skipping item for now", e)
                 }
             }
@@ -291,9 +312,21 @@ class TransactionRepositoryImpl(
 
             Log.d(tag, "Bidirectional cloud sync complete. Synced: ${remoteTransactions.size} transactions, ${remoteGoals.size} savings goals, ${remoteDebts.size} debts.")
             SyncManager.updateState(SyncState.SYNCED)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(tag, "Failed to synchronize downloads, transitioning state to OFFLINE", e)
             SyncManager.updateState(SyncState.OFFLINE)
+            try {
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    val errorMsg = e.localizedMessage ?: e.message ?: "Mise à jour requise ou problème réseau"
+                    android.widget.Toast.makeText(
+                        context,
+                        "Erreur de synchronisation : $errorMsg",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show()
+                }
+            } catch (t: Throwable) {
+                t.printStackTrace()
+            }
         }
     }
 

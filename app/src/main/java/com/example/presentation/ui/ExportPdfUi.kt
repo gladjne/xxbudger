@@ -1,3 +1,4 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.presentation.ui
 
 import androidx.compose.foundation.BorderStroke

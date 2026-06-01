@@ -1,3 +1,4 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.presentation.viewmodel
 
 import androidx.lifecycle.ViewModel
@@ -54,7 +55,7 @@ class BudgetViewModel(
 ) : ViewModel() {
 
     // SharedPreferences setup
-    private val sharedPrefs = context.getSharedPreferences("budget_joy_prefs", android.content.Context.MODE_PRIVATE)
+    private val sharedPrefs = com.example.data.security.SecureStorageManager.getEncryptedSharedPreferences(context)
 
     private val _userName = MutableStateFlow(sharedPrefs.getString("user_name", "Joy Amedjonekou") ?: "Joy Amedjonekou")
     val userName: StateFlow<String> = _userName.asStateFlow()
@@ -90,6 +91,17 @@ class BudgetViewModel(
         com.example.data.notification.DailyNotificationWorker.scheduleOrCancel(context, enabled)
     }
 
+    private val _biometricsEnabled = MutableStateFlow(sharedPrefs.getBoolean("biometrics_enabled", false))
+    val biometricsEnabled: StateFlow<Boolean> = _biometricsEnabled.asStateFlow()
+
+    fun setBiometricsEnabled(enabled: Boolean) {
+        _biometricsEnabled.value = enabled
+        sharedPrefs.edit().putBoolean("biometrics_enabled", enabled).apply()
+        if (!enabled) {
+            _isAppLocked.value = false
+        }
+    }
+
     private val themeRepository = ThemePreferencesRepository(context)
 
     private val _currentThemeType = MutableStateFlow(BudgetThemeType.BENTO_NUIT)
@@ -100,6 +112,50 @@ class BudgetViewModel(
 
     private val _currentCurrency = MutableStateFlow("€")
     val currentCurrency: StateFlow<String> = _currentCurrency.asStateFlow()
+
+    private val _isAppLocked = MutableStateFlow(sharedPrefs.getBoolean("biometrics_enabled", false))
+    val isAppLocked: StateFlow<Boolean> = _isAppLocked.asStateFlow()
+
+    private var backgroundTimestamp: Long? = null
+
+    fun unlockApp() {
+        _isAppLocked.value = false
+    }
+
+    fun onAppBackgrounded() {
+        if (!sharedPrefs.getBoolean("biometrics_enabled", false)) {
+            return
+        }
+        if (!_isAppLocked.value) {
+            backgroundTimestamp = System.currentTimeMillis()
+        }
+    }
+
+    fun onAppForegrounded(activity: androidx.appcompat.app.AppCompatActivity, onAuthRequired: () -> Unit) {
+        if (!sharedPrefs.getBoolean("biometrics_enabled", false)) {
+            _isAppLocked.value = false
+            return
+        }
+        val currentTimestamp = System.currentTimeMillis()
+        val bgTime = backgroundTimestamp
+        
+        if (_isAppLocked.value) {
+            onAuthRequired()
+            return
+        }
+
+        if (bgTime == null) {
+            _isAppLocked.value = true
+            onAuthRequired()
+        } else {
+            val elapsedMillis = currentTimestamp - bgTime
+            if (elapsedMillis > 120_000) {
+                _isAppLocked.value = true
+                onAuthRequired()
+            }
+        }
+        backgroundTimestamp = null
+    }
 
     init {
         viewModelScope.launch {
@@ -198,7 +254,7 @@ class BudgetViewModel(
                         .set(profileMap, com.google.firebase.firestore.SetOptions.merge())
                 }
             } catch (e: Exception) {
-                android.util.Log.e("BudgetViewModel", "Error syncing profile to Firestore", e)
+                com.example.data.security.SafeLog.e("BudgetViewModel", "Error syncing profile to Firestore")
             }
         }
     }
@@ -452,6 +508,10 @@ class BudgetViewModel(
         initialAmount: Double = 0.0,
         targetDateTimestamp: Long? = null
     ) {
+        if (name.isBlank() || targetAmount <= 0.0) {
+            com.example.data.security.SafeLog.e("BudgetViewModel", "Failed to add goal: name is empty or targetAmount <= 0")
+            return
+        }
         viewModelScope.launch {
             val goal = SavingsGoal(
                 name = name,
@@ -565,7 +625,7 @@ class BudgetViewModel(
                     _adviceHistory.value = currentHistory.take(10)
                 }
             } catch (e: Exception) {
-                _aiState.value = AiUiState.Error(e.message ?: "Échec de l'obtention des conseils de Joy AI")
+                _aiState.value = AiUiState.Error("Échec de l'obtention des conseils de Joy AI")
             }
         }
     }
@@ -622,6 +682,10 @@ class BudgetViewModel(
     }
 
     fun addDebt(name: String, totalAmount: Double, reimbursedAmount: Double = 0.0, dateTimestamp: Long? = null) {
+        if (name.isBlank() || totalAmount <= 0.0) {
+            com.example.data.security.SafeLog.e("BudgetViewModel", "Failed to add debt: name is empty or totalAmount <= 0")
+            return
+        }
         viewModelScope.launch {
             val debt = Debt(
                 name = name,

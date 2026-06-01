@@ -1,7 +1,8 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.data.export
 
 import android.content.Context
-import android.util.Log
+import com.example.data.security.SafeLog as Log
 import com.example.domain.model.Transaction
 import java.io.File
 import java.io.FileOutputStream

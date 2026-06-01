@@ -1,6 +1,7 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.data.ai
 
-import android.util.Log
+import com.example.data.security.SafeLog as Log
 import com.example.domain.ai.BudgetAiResult
 import com.example.domain.ai.BudgetAiService
 import com.example.domain.ai.GoalProgressInfo
@@ -148,7 +149,7 @@ class GeminiBudgetService(
             Log.e("GeminiBudgetService", "Empty or unexpected response structure from Gemini API. Falling back.")
             fallbackService.generateAdvice(totalIncome, totalExpense, totalSaving, recentExpensesByCategory, goalsProgress, selectedLanguage)
         } catch (e: Exception) {
-            Log.e("GeminiBudgetService", "Gemini query timed out or returned error: ${e.message}. Falling back.", e)
+            Log.e("GeminiBudgetService", "Gemini query timed out or returned error. Falling back.")
             fallbackService.generateAdvice(totalIncome, totalExpense, totalSaving, recentExpensesByCategory, goalsProgress, selectedLanguage)
         }
     }

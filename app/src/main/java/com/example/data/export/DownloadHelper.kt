@@ -1,3 +1,4 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.data.export
 
 import android.content.ContentValues
@@ -7,7 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
-import android.util.Log
+import com.example.data.security.SafeLog as Log
 import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileInputStream

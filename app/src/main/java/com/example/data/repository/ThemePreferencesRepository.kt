@@ -1,26 +1,42 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.data.repository
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
+import android.content.SharedPreferences
+import com.example.data.security.SecureStorageManager
 import com.example.ui.theme.BudgetThemeType
 import com.example.ui.localization.AppLanguageSupported
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.map
 
-val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "theme_preferences")
-
 class ThemePreferencesRepository(private val context: Context) {
-    private val themeKey = stringPreferencesKey("app_theme")
-    private val languageKey = stringPreferencesKey("app_language")
-    private val currencyKey = stringPreferencesKey("app_currency")
+    private val securePrefs: SharedPreferences by lazy {
+        SecureStorageManager.getEncryptedSharedPreferences(context)
+    }
 
-    val themeTypeFlow: Flow<BudgetThemeType> = context.dataStore.data
-        .map { preferences ->
-            val themeName = preferences[themeKey] ?: BudgetThemeType.BENTO_NUIT.name
+    private val themeKey = "app_theme"
+    private val languageKey = "app_language"
+    private val currencyKey = "app_currency"
+
+    private fun SharedPreferences.observeKey(key: String, defaultValue: String): Flow<String> = callbackFlow {
+        // Emit the current state first
+        trySend(getString(key, defaultValue) ?: defaultValue)
+
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
+            if (changedKey == key) {
+                trySend(getString(key, defaultValue) ?: defaultValue)
+            }
+        }
+        registerOnSharedPreferenceChangeListener(listener)
+        awaitClose {
+            unregisterOnSharedPreferenceChangeListener(listener)
+        }
+    }
+
+    val themeTypeFlow: Flow<BudgetThemeType> = securePrefs.observeKey(themeKey, BudgetThemeType.BENTO_NUIT.name)
+        .map { themeName ->
             try {
                 BudgetThemeType.valueOf(themeName)
             } catch (e: Exception) {
@@ -29,14 +45,11 @@ class ThemePreferencesRepository(private val context: Context) {
         }
 
     suspend fun saveThemeType(themeType: BudgetThemeType) {
-        context.dataStore.edit { preferences ->
-            preferences[themeKey] = themeType.name
-        }
+        securePrefs.edit().putString(themeKey, themeType.name).apply()
     }
 
-    val languageFlow: Flow<AppLanguageSupported> = context.dataStore.data
-        .map { preferences ->
-            val langName = preferences[languageKey] ?: AppLanguageSupported.FRANCAIS.name
+    val languageFlow: Flow<AppLanguageSupported> = securePrefs.observeKey(languageKey, AppLanguageSupported.FRANCAIS.name)
+        .map { langName ->
             try {
                 AppLanguageSupported.valueOf(langName)
             } catch (e: Exception) {
@@ -45,19 +58,12 @@ class ThemePreferencesRepository(private val context: Context) {
         }
 
     suspend fun saveLanguage(language: AppLanguageSupported) {
-        context.dataStore.edit { preferences ->
-            preferences[languageKey] = language.name
-        }
+        securePrefs.edit().putString(languageKey, language.name).apply()
     }
 
-    val currencyFlow: Flow<String> = context.dataStore.data
-        .map { preferences ->
-            preferences[currencyKey] ?: "€"
-        }
+    val currencyFlow: Flow<String> = securePrefs.observeKey(currencyKey, "€")
 
     suspend fun saveCurrency(currency: String) {
-        context.dataStore.edit { preferences ->
-            preferences[currencyKey] = currency
-        }
+        securePrefs.edit().putString(currencyKey, currency).apply()
     }
 }

@@ -1,8 +1,13 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.presentation.ui
 
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.automirrored.filled.*
 
 object UiUtils {
     var currentCurrencySymbol: String = "€"
@@ -23,33 +28,7 @@ object UiUtils {
         currency: String = currentCurrencySymbol,
         language: com.example.ui.localization.AppLanguageSupported = currentLanguage
     ): String {
-        val locale = when (language) {
-            com.example.ui.localization.AppLanguageSupported.FRANCAIS -> Locale.FRANCE
-            com.example.ui.localization.AppLanguageSupported.ENGLISH -> Locale.US
-            com.example.ui.localization.AppLanguageSupported.ESPANOL -> Locale("es", "ES")
-            com.example.ui.localization.AppLanguageSupported.DEUTSCH -> Locale.GERMANY
-            com.example.ui.localization.AppLanguageSupported.ITALIANO -> Locale.ITALY
-            com.example.ui.localization.AppLanguageSupported.PORTUGUES -> Locale("pt", "PT")
-            com.example.ui.localization.AppLanguageSupported.CHINESE -> Locale.CHINA
-            com.example.ui.localization.AppLanguageSupported.JAPANESE -> Locale.JAPAN
-            com.example.ui.localization.AppLanguageSupported.ARABIC -> Locale("ar", "SA")
-            com.example.ui.localization.AppLanguageSupported.RUSSIAN -> Locale("ru", "RU")
-            com.example.ui.localization.AppLanguageSupported.KOREAN -> Locale.KOREA
-        }
-
-        return when (currency) {
-            "€" -> String.format(locale, "%,.2f €", amount)
-            "$" -> String.format(locale, "$%,.2f", amount)
-            "£" -> String.format(locale, "£%,.2f", amount)
-            "¥" -> String.format(locale, "¥%,.0f", amount)
-            "₹" -> String.format(locale, "₹%,.2f", amount)
-            "FCFA" -> String.format(locale, "%,.0f FCFA", amount)
-            "₦" -> String.format(locale, "₦%,.2f", amount)
-            "R" -> String.format(locale, "R %,.2f", amount)
-            "CA$" -> String.format(locale, "CAD %,.2f", amount)
-            "A$" -> String.format(locale, "AUD %,.2f", amount)
-            else -> String.format(locale, "%,.2f %s", amount, currency)
-        }
+        return CurrencyFormatter(currency, language).format(amount)
     }
 
     /**
@@ -291,6 +270,34 @@ object UiUtils {
                 savingsRate >= 10.0 -> "Healthy & Balanced Budget 🍃"
                 else -> "Active Daily Management 🎯"
             }
+        }
+    }
+
+    fun getCategoryIcon(category: String): ImageVector {
+        return when (category) {
+            "Logement" -> Icons.Default.Home
+            "Courses" -> Icons.Default.ShoppingCart
+            "Transport" -> Icons.Default.DirectionsCar
+            "Études" -> Icons.Default.School
+            "Projet étude" -> Icons.Default.Book
+            "Santé" -> Icons.Default.MedicalServices
+            "Loisirs" -> Icons.Default.SportsEsports
+            "Remboursement de prêt" -> Icons.Default.CreditCard
+            "Autre dépense" -> Icons.Default.Category
+            
+            "Salaire job étudiant" -> Icons.Default.AttachMoney
+            "Bourse" -> Icons.Default.School
+            "Aide familiale" -> Icons.Default.People
+            "Remboursement prêt" -> Icons.Default.CreditCard
+            "Autre entrée" -> Icons.Default.AddCard
+            
+            "Urgence" -> Icons.Default.Shield
+            "Ordinateur" -> Icons.Default.Laptop
+            "Voyage" -> Icons.Default.Flight
+            "Frais universitaires" -> Icons.Default.AccountBalance
+            "Autre objectif" -> Icons.Default.Savings
+            
+            else -> Icons.Default.Category
         }
     }
 }

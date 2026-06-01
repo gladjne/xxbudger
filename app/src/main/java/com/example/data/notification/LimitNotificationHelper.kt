@@ -1,3 +1,4 @@
+// Copyright (c) 2025 Gladstone Joy. Licensed under the MIT License.
 package com.example.data.notification
 
 import android.app.NotificationChannel
@@ -24,7 +25,7 @@ object LimitNotificationHelper {
         percentage: Int,
         lang: AppLanguageSupported
     ) {
-        val sharedPrefs = context.getSharedPreferences("budget_joy_prefs", Context.MODE_PRIVATE)
+        val sharedPrefs = com.example.data.security.SecureStorageManager.getEncryptedSharedPreferences(context)
         val notificationsEnabled = sharedPrefs.getBoolean("notifications_enabled", true)
         if (!notificationsEnabled) {
             Log.d(TAG, "Notifications are disabled. Skipping notification.")

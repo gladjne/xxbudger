@@ -41,6 +41,8 @@ android {
     release {
       isCrunchPngs = false
       isMinifyEnabled = false
+      isShrinkResources = false
+      isDebuggable = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       signingConfig = signingConfigs.getByName("release")
     }
@@ -83,6 +85,11 @@ dependencies {
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
+  implementation(libs.androidx.appcompat)
+  implementation(libs.androidx.biometric)
+  implementation(libs.androidx.security.crypto)
+  implementation(libs.sqlcipher)
+  implementation("androidx.sqlite:sqlite-ktx:2.4.0")
   implementation(libs.androidx.core.ktx)
   implementation(libs.androidx.datastore.preferences)
   implementation(libs.androidx.lifecycle.runtime.compose)
@@ -97,6 +104,7 @@ dependencies {
   // implementation(libs.firebase.ai)
   implementation(libs.firebase.auth)
   implementation(libs.firebase.firestore)
+  implementation(libs.zxing.core)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)
