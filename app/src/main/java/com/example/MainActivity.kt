@@ -53,53 +53,60 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
             return
         }
-        val biometricManager = androidx.biometric.BiometricManager.from(this)
-        val authenticators = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG or 
-                             androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
-        
-        val status = biometricManager.canAuthenticate(authenticators)
-        if (status != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
-            // Auto open if system features/security are not set up or configured on this device
-            viewModel.unlockApp()
-            return
-        }
-
-        val executor = androidx.core.content.ContextCompat.getMainExecutor(this)
-        val biometricPrompt = androidx.biometric.BiometricPrompt(
-            this,
-            executor,
-            object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    super.onAuthenticationError(errorCode, errString)
-                    isBiometricPromptShowing = false
-                }
-
-                override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
-                    super.onAuthenticationSucceeded(result)
-                    isBiometricPromptShowing = false
-                    viewModel.unlockApp()
-                }
-
-                override fun onAuthenticationFailed() {
-                    super.onAuthenticationFailed()
-                    isBiometricPromptShowing = false
-                }
-            }
-        )
-
-        val promptInfo = androidx.biometric.BiometricPrompt.PromptInfo.Builder()
-            .setTitle(getString(R.string.biometric_prompt_title))
-            .setSubtitle(getString(R.string.biometric_prompt_subtitle))
-            .setAllowedAuthenticators(authenticators)
-            .build()
-
         try {
+            val biometricManager = androidx.biometric.BiometricManager.from(this)
+            val authenticators = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG or 
+                                 androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            
+            val status = biometricManager.canAuthenticate(authenticators)
+            if (status != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
+                // Auto open if system features/security are not set up or configured on this device
+                viewModel.unlockApp()
+                return
+            }
+
+            val executor = androidx.core.content.ContextCompat.getMainExecutor(this)
+            val biometricPrompt = androidx.biometric.BiometricPrompt(
+                this,
+                executor,
+                object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        super.onAuthenticationError(errorCode, errString)
+                        isBiometricPromptShowing = false
+                    }
+
+                    override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) {
+                        super.onAuthenticationSucceeded(result)
+                        isBiometricPromptShowing = false
+                        viewModel.unlockApp()
+                    }
+
+                    override fun onAuthenticationFailed() {
+                        super.onAuthenticationFailed()
+                        isBiometricPromptShowing = false
+                    }
+                }
+            )
+
+            val titleText = try { getString(R.string.biometric_prompt_title) } catch (t: Throwable) { "Authentification requise" }
+            val subtitleText = try { getString(R.string.biometric_prompt_subtitle) } catch (t: Throwable) { "Pour sécuriser vos données" }
+
+            val promptInfo = androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+                .setTitle(titleText)
+                .setSubtitle(subtitleText)
+                .setAllowedAuthenticators(authenticators)
+                .build()
+
             isBiometricPromptShowing = true
             biometricPrompt.authenticate(promptInfo)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             isBiometricPromptShowing = false
-            e.printStackTrace()
-            viewModel.unlockApp()
+            android.util.Log.e("BIOMETRIC_PROMPT_CRASH_PREVENTED", "Prevented biom prompt crash, falling back to auto unlock.", e)
+            try {
+                viewModel.unlockApp()
+            } catch (t: Throwable) {
+                t.printStackTrace()
+            }
         }
     }
 
