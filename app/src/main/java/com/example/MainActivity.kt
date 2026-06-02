@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 class MainActivity : androidx.appcompat.app.AppCompatActivity() {
     private lateinit var viewModel: BudgetViewModel
     private var isBiometricPromptShowing = false
+    private var autoPromptAttempted = false
 
     override fun onStart() {
         super.onStart()
@@ -33,13 +34,15 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (::viewModel.isInitialized && viewModel.isAppLocked.value) {
+        if (::viewModel.isInitialized && viewModel.isAppLocked.value && !autoPromptAttempted) {
+            autoPromptAttempted = true
             showBiometricPrompt()
         }
     }
 
     override fun onStop() {
         super.onStop()
+        autoPromptAttempted = false
         if (::viewModel.isInitialized) {
             viewModel.onAppBackgrounded()
         }
