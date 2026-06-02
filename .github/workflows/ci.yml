@@ -31,9 +31,15 @@ jobs:
 
       - name: Run Lint
         run: ./gradlew lint
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
