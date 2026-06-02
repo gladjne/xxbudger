@@ -19,14 +19,23 @@ import androidx.compose.ui.unit.dp
 
 class MainActivity : androidx.appcompat.app.AppCompatActivity() {
     private lateinit var viewModel: BudgetViewModel
+
+    // Fix #5/#6: Single flag to track biometric state, cleared only on explicit completion
     private var isBiometricPromptShowing = false
+
+    // Fix #5: Track if we already attempted in THIS foreground session (reset in onStart, not onStop)
     private var autoPromptAttempted = false
+
+    // Fix #1: Hold authViewModel at Activity level so it is never recreated inside composition
+    private var authViewModel: com.example.presentation.viewmodel.AuthViewModel? = null
 
     override fun onStart() {
         super.onStart()
+        // Fix #5: Reset flag at the start of each foreground session (not onStop, which may not fire)
+        autoPromptAttempted = false
         if (::viewModel.isInitialized) {
             viewModel.onAppForegrounded(this) {
-                // Decoupled: when biometric lock is active, the composition shows LockScreen, 
+                // Decoupled: when biometric lock is active, the composition shows LockScreen,
                 // which handles prompting automatically and safely when composed.
             }
         }
@@ -34,7 +43,9 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (::viewModel.isInitialized && viewModel.isAppLocked.value && !autoPromptAttempted) {
+        // Fix #6: Guard with isBiometricPromptShowing to prevent double-prompt (onStart + onResume race)
+        if (::viewModel.isInitialized && viewModel.isAppLocked.value
+            && !autoPromptAttempted && !isBiometricPromptShowing) {
             autoPromptAttempted = true
             showBiometricPrompt()
         }
@@ -42,7 +53,6 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        autoPromptAttempted = false
         if (::viewModel.isInitialized) {
             viewModel.onAppBackgrounded()
         }
@@ -55,9 +65,9 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
         }
         try {
             val biometricManager = androidx.biometric.BiometricManager.from(this)
-            val authenticators = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG or 
+            val authenticators = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG or
                                  androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
-            
+
             val status = biometricManager.canAuthenticate(authenticators)
             if (status != androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS) {
                 // Auto open if system features/security are not set up or configured on this device
@@ -83,7 +93,7 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
 
                     override fun onAuthenticationFailed() {
                         super.onAuthenticationFailed()
-                        isBiometricPromptShowing = false
+                        // Don't reset isBiometricPromptShowing here — the prompt is still visible
                     }
                 }
             )
@@ -112,7 +122,7 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         enableEdgeToEdge()
 
         var authRepository: com.example.data.repository.FirebaseAuthRepository? = null
@@ -185,7 +195,7 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
             android.util.Log.e("INIT_CRASH", "Failed at scheduling notifications", e)
         }
 
-        var authViewModel: com.example.presentation.viewmodel.AuthViewModel? = null
+        // Fix #1: AuthViewModel created once at Activity level, never inside composition
         try {
             val authViewModelFactory = com.example.presentation.viewmodel.AuthViewModelFactory(authFinal)
             authViewModel = ViewModelProvider(this, authViewModelFactory)[com.example.presentation.viewmodel.AuthViewModel::class.java]
@@ -209,7 +219,7 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                                 verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(16.dp)
                             ) {
                                 androidx.compose.material3.CircularProgressIndicator()
-                                androidx.compose.material3.Text("Initialisation de l'application réinitialisée...")
+                                androidx.compose.material3.Text("Initialisation de l'application...")
                             }
                         }
                     }
@@ -220,9 +230,6 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
             val currentLanguage by viewModel.currentLanguage.collectAsState()
             val currentCurrency by viewModel.currentCurrency.collectAsState()
             val strings = com.example.ui.localization.getStringsForLanguage(currentLanguage)
-
-            // Dynamic local translation is cleanly handled inside Compose using LocalAppStrings.
-            // Avoid calling AppCompatDelegate.setApplicationLocales automatically on every startup to prevent infinite activity recreation loops.
 
             val currencyFormatter = androidx.compose.runtime.remember(currentCurrency, currentLanguage) {
                 com.example.presentation.ui.CurrencyFormatter(currentCurrency, currentLanguage)
@@ -241,7 +248,12 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
                             }
                         )
                     } else {
-                        val authViewModelNonNull = authViewModel ?: ViewModelProvider(this@MainActivity, com.example.presentation.viewmodel.AuthViewModelFactory(authFinal))[com.example.presentation.viewmodel.AuthViewModel::class.java]
+                        // Fix #1: Use Activity-level authViewModel, never recreate inside composition
+                        val authViewModelNonNull = authViewModel
+                            ?: ViewModelProvider(this@MainActivity,
+                                com.example.presentation.viewmodel.AuthViewModelFactory(authFinal)
+                            )[com.example.presentation.viewmodel.AuthViewModel::class.java]
+                                .also { authViewModel = it }
                         MainScreen(
                             viewModel = viewModel,
                             authViewModel = authViewModelNonNull
