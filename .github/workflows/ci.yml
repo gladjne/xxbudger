@@ -21,12 +21,12 @@ jobs:
           distribution: 'zulu'
           java-version: '17'
 
-      - name: Fix gradle-wrapper.jar
+      - name: Fix corrupt gradle-wrapper.jar
         run: |
-          curl -fsSL https://raw.githubusercontent.com/gradle/gradle/v9.3.1/gradle/wrapper/gradle-wrapper.jar \
-            -o gradle/wrapper/gradle-wrapper.jar || \
-          wget -q https://github.com/gradle/gradle/raw/v9.3.1/gradle/wrapper/gradle-wrapper.jar \
+          wget -q "https://repo1.maven.org/maven2/org/gradle/gradle-wrapper/9.3.1/gradle-wrapper-9.3.1.jar" \
             -O gradle/wrapper/gradle-wrapper.jar
+          echo "Downloaded $(du -sh gradle/wrapper/gradle-wrapper.jar | cut -f1) jar"
+          file gradle/wrapper/gradle-wrapper.jar
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
