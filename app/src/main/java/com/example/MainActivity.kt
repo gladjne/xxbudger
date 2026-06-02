@@ -23,9 +23,11 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
-        viewModel.onAppForegrounded(this) {
-            // Decoupled: when biometric lock is active, the composition shows LockScreen, 
-            // which handles prompting automatically and safely when composed.
+        if (::viewModel.isInitialized) {
+            viewModel.onAppForegrounded(this) {
+                // Decoupled: when biometric lock is active, the composition shows LockScreen, 
+                // which handles prompting automatically and safely when composed.
+            }
         }
     }
 
@@ -38,7 +40,9 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
 
     override fun onStop() {
         super.onStop()
-        viewModel.onAppBackgrounded()
+        if (::viewModel.isInitialized) {
+            viewModel.onAppBackgrounded()
+        }
     }
 
     fun showBiometricPrompt() {
@@ -121,7 +125,26 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
             android.widget.Toast.makeText(this, "Database error: Falling back to temporary storage", android.widget.Toast.LENGTH_LONG).show()
         }
 
-        val authFinal = authRepository ?: com.example.data.repository.FirebaseAuthRepository(applicationContext)
+        val authFinal = authRepository ?: object : com.example.domain.repository.AuthRepository {
+            private val _currentUser = kotlinx.coroutines.flow.MutableStateFlow<com.example.domain.model.UserSession?>(null)
+            override val currentUser: kotlinx.coroutines.flow.StateFlow<com.example.domain.model.UserSession?> = _currentUser
+
+            override suspend fun register(email: String, password: String): Result<com.example.domain.model.UserSession> = Result.failure(Exception("Authentification indisponible"))
+            override suspend fun login(email: String, password: String): Result<com.example.domain.model.UserSession> = Result.failure(Exception("Authentification indisponible"))
+            override suspend fun logout(): Result<Unit> = Result.success(Unit)
+            override fun isSessionActive() = false
+            override suspend fun sendVerificationEmail(): Result<Unit> = Result.failure(Exception("Authentification indisponible"))
+            override suspend fun reloadUser(): Result<com.example.domain.model.UserSession?> = Result.success(null)
+            override fun isPasswordUpgradeRequired(email: String) = false
+            override fun setPasswordUpgradeRequired(email: String, required: Boolean) {}
+            override suspend fun updatePassword(newPassword: String): Result<Unit> = Result.failure(Exception("Authentification indisponible"))
+            override fun is2FAEnabled(email: String) = false
+            override fun set2FAEnabled(email: String, enabled: Boolean) {}
+            override fun get2FASecret(email: String): String? = null
+            override fun set2FASecret(email: String, secret: String?) {}
+            override fun is2FAPromptDismissed(email: String) = false
+            override fun set2FAPromptDismissed(email: String, dismissed: Boolean) {}
+        }
 
         try {
             val transactionDao = database?.transactionDao() ?: throw IllegalStateException("Database is null")
@@ -188,34 +211,8 @@ class MainActivity : androidx.appcompat.app.AppCompatActivity() {
             val currentCurrency by viewModel.currentCurrency.collectAsState()
             val strings = com.example.ui.localization.getStringsForLanguage(currentLanguage)
 
-            // Dynamic locale binding for system and Compose
-            val localeTag = when (currentLanguage) {
-                com.example.ui.localization.AppLanguageSupported.FRANCAIS -> "fr"
-                com.example.ui.localization.AppLanguageSupported.ENGLISH -> "en"
-                com.example.ui.localization.AppLanguageSupported.ESPANOL -> "es"
-                com.example.ui.localization.AppLanguageSupported.DEUTSCH -> "de"
-                com.example.ui.localization.AppLanguageSupported.ITALIANO -> "it"
-                com.example.ui.localization.AppLanguageSupported.PORTUGUES -> "pt"
-                com.example.ui.localization.AppLanguageSupported.CHINESE -> "zh"
-                com.example.ui.localization.AppLanguageSupported.JAPANESE -> "ja"
-                com.example.ui.localization.AppLanguageSupported.ARABIC -> "ar"
-                com.example.ui.localization.AppLanguageSupported.RUSSIAN -> "ru"
-                com.example.ui.localization.AppLanguageSupported.KOREAN -> "ko"
-            }
-            androidx.compose.runtime.LaunchedEffect(localeTag) {
-                try {
-                    val currentLocales = androidx.appcompat.app.AppCompatDelegate.getApplicationLocales()
-                    val primaryLocale = if (currentLocales.isEmpty) null else currentLocales.get(0)
-                    val needsUpdate = primaryLocale == null || primaryLocale.language != localeTag
-                    if (needsUpdate) {
-                        androidx.appcompat.app.AppCompatDelegate.setApplicationLocales(
-                            androidx.core.os.LocaleListCompat.forLanguageTags(localeTag)
-                        )
-                    }
-                } catch (t: Throwable) {
-                    t.printStackTrace()
-                }
-            }
+            // Dynamic local translation is cleanly handled inside Compose using LocalAppStrings.
+            // Avoid calling AppCompatDelegate.setApplicationLocales automatically on every startup to prevent infinite activity recreation loops.
 
             val currencyFormatter = androidx.compose.runtime.remember(currentCurrency, currentLanguage) {
                 com.example.presentation.ui.CurrencyFormatter(currentCurrency, currentLanguage)

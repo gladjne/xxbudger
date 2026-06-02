@@ -35,9 +35,42 @@ abstract class AppDatabase : RoomDatabase() {
                     builder.openHelperFactory(factory)
                 }
 
-                val instance = builder
+                var instance = builder
                     .fallbackToDestructiveMigration()
                     .build()
+
+                try {
+                    // Force-trigger safe database opening/creation check
+                    instance.openHelper.writableDatabase
+                } catch (t: Throwable) {
+                    android.util.Log.e("DATABASE_ROBUSTNESS", "Database opening generated errors. Corrupted, old, or mismatched key? Recreating cleanly...", t)
+                    try {
+                        instance.close()
+                    } catch (closeEx: Throwable) {
+                        closeEx.printStackTrace()
+                    }
+                    try {
+                        val dbFile = context.applicationContext.getDatabasePath("budget_joy_database")
+                        if (dbFile.exists()) {
+                            dbFile.delete()
+                        }
+                        val shmFile = context.applicationContext.getDatabasePath("budget_joy_database-shm")
+                        if (shmFile.exists()) {
+                            shmFile.delete()
+                        }
+                        val walFile = context.applicationContext.getDatabasePath("budget_joy_database-wal")
+                        if (walFile.exists()) {
+                            walFile.delete()
+                        }
+                    } catch (delEx: Throwable) {
+                        delEx.printStackTrace()
+                    }
+                    // Rebuild a fresh, empty database instance
+                    instance = builder
+                        .fallbackToDestructiveMigration()
+                        .build()
+                }
+
                 INSTANCE = instance
                 instance
             }

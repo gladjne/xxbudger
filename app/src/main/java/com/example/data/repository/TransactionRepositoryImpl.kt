@@ -337,7 +337,7 @@ class TransactionRepositoryImpl(
             debtDao.clearAllDebts()
             categoryLimitDao.clearAllCategoryLimits()
             Log.d(tag, "Successfully cleared all cached local tables plus category limits.")
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             Log.e(tag, "Error clearing local data tables", e)
         }
     }
